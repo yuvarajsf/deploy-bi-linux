@@ -1,5 +1,4 @@
 import paramiko
-import time
 import os
 import json
 
@@ -52,7 +51,7 @@ class SSHConnectionManager:
                 sudo_command = f"echo '{self.password}' | sudo -S {command}"
 
             stdin, stdout, stderr = self.ssh_client.exec_command(sudo_command)
-            if (type):
+            if (showOutput):
                 output = stdout.read().decode("utf-8")
                 output += stderr.read().decode("utf-8")
                 print(f"\n{output}")

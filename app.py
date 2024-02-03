@@ -1,17 +1,18 @@
 import os
 import json
+import easygui
 
 from src.ConnectionHelper import SSHConnectionManager
-    
 
 prerequired_items = [
-    'update',
     'nginx',
     'zip',
     'libgdiplus',
     'pv',
     'python3-pip'
 ]
+
+deployed_location = "/var/www/bold-services/application/bi/dataservice/"
 
 #helper methods
 def check_exisiting_session():
@@ -31,6 +32,8 @@ def check_exisiting_session():
     except Exception as e:
         return [False]
 
+
+
 if __name__ == "__main__":
     ssh = None
     try:
@@ -41,12 +44,19 @@ if __name__ == "__main__":
             print("3. Install and Deploy Build")
             print("4. Update Build")
             print("5. Patch work")
-            print("6. Clear & Show Option")
-            print("7. Exit and close connection")
+            print("6. Revert Patch work")
+            print("7. Uninstall Build")
+            print("8. Clear & Show Option")
+            print("9. Exit and close connection")
             print("-"*40)
-            choice = int(input("==> "))
-            os.system('cls')
+            try:
+                choice = int(input("==> "))
+            except ValueError:
+                os.system('cls')
+                print("[-] Invalid input. Please enter a valid number.")
+                continue
 
+            os.system('cls')
             if choice == 1:
                 [status, uname, passwd, host] = check_exisiting_session()
                 if (status):
@@ -78,15 +88,19 @@ if __name__ == "__main__":
                 if not ssh:
                     print("[-] SSH connection is not established. Please connect first.")
                     continue
+                
 
                 build_url = input("Build URL :==> ")
-
                 resp = input("[+] Do you want to extract in custom folder (default no)? (y/n)")
                 folder = None
                 if resp.lower() == 'y':
                     folder = input("Custom Foldername :==> ")
                     command = f"mkdir {folder}"
                     ssh.execute_command(command)
+
+                # remove backup folder
+                command = "rm -rf ./backup"
+                ssh.execute_command(command)
 
                 # download the build source from internet
                 print("[+] Downloading the build....")
@@ -109,10 +123,9 @@ if __name__ == "__main__":
                 ssh.execute_command(command)
                 print("[+] Build extracted successfully.")
                 
-
-
                 # Deploy the build
                 print("[+] Deploying the build....")
+                print("[!] Please wait, it may take some time to deploy the build....")
                 extracted_folder = "BoldBIEnterpriseEdition-Linux"
                 if folder:
                     command = f"cd ./{folder}/{extracted_folder}/ && echo {ssh.password} | sudo -S bash install-boldbi.sh -i new -u root -h http://{ssh.host} -n true"
@@ -120,19 +133,98 @@ if __name__ == "__main__":
                     command = f"cd ./{extracted_folder}/ && echo {ssh.password} | sudo -S bash install-boldbi.sh -i new -u root -h http://{ssh.host} -n true"
 
                 ssh.execute_command(command, False)
+                ssh.execute_command("export OPENSSL=/etc/ssl/", False)
                 print("[+] Build deployed successfully.")
 
             elif choice == 4:
-                print("update build")
+                print("update build - under development....")
             
             elif choice == 5:
-                print("patch work")
+                if not ssh:
+                    print("[-] SSH connection is not established. Please connect first.")
+                    continue
+                try:
+                    print("[+] Select patch files to make changes in the build")
+                    file_paths = easygui.fileopenbox(title="Select patch file", filetypes=["*.dll"], default="D:/", multiple=True)
+                    command = "mkdir backup"
+                    ssh.execute_command(command, True, False)
+                    
+                    if file_paths:
+                        for link in file_paths:
+                            dll_file_name = link.split("\\")[-1]
+                            modified_link = link.replace("\\", "/")
+                            print("[+] Uploading: ", dll_file_name)
+
+                            # take backup of the existing file
+                            print("[+] Taking backup of existing file....")
+                            command = f"cp {deployed_location}{dll_file_name} ~/backup/{dll_file_name}"
+                            ssh.execute_command(command)
+                            print("[+] Backup taken successfully.")
+
+                            # move the new file to the deployed location
+                            print("[+] Moving new patch files to deployed location....")
+                            remote_path = f"{deployed_location}"
+                            
+                            # move files to remote server
+                            scp = ssh.ssh_client.open_sftp()
+                            scp.put(modified_link, dll_file_name)
+                            scp.close()
+                            command = f"mv ./{dll_file_name} {remote_path}"
+                            ssh.execute_command(command)
+                            print("[+] Patch deployed successfully.")
+                            
+
+                        # restart BoldBI service
+                        print("[+] Restarting BoldBI service....")
+                        command = "systemctl restart bold-*"
+                        ssh.execute_command(command)
+                        print("[+] BoldBI service restarted successfully.")
+
+                    else:
+                        print("[-] No file selected.")
+                except Exception as e:
+                    print("[-] Error occurred: ", e)
 
             elif choice == 6:
+                if not ssh:
+                    print("[-] SSH connection is not established. Please connect first.")
+                    continue
+                try:
+                    # Move backup files to deployed location
+                    command = "mv ~/backup/* /var/www/bold-services/application/bi/dataservice/"
+                    ssh.execute_command(command)
+                    print("[+] If backup found, Patch reverted successfully.")
+                    
+                    # remove backup folder
+                    command = "rm -rf ~/backup"
+                    ssh.execute_command(command)
+
+                    # restart BoldBI service
+                    print("[+] Restarting BoldBI service....")
+                    command = "systemctl restart bold-*"
+                    ssh.execute_command(command)
+                    print("[+] BoldBI service restarted successfully.")
+                except Exception as e:
+                    print("[-] Error occurred: ", e)
+
+            elif choice == 7:
+                if not ssh:
+                    print("[-] SSH connection is not established. Please connect first.")
+                    continue
+                resp = input("[+] Do you want to uninstall the build? (y/n)")
+                if resp.lower() == 'y':
+                    print("[+] Uninstalling the build....")
+                    command = f"cd /var/www/bold-* && echo {ssh.password} | sudo -S bash -c 'echo yes | bash ./uninstall-boldbi.sh'"
+                    ssh.execute_command(command, False)
+                    print("[+] Build uninstalled successfully.")
+                else:
+                    print("[-] Uninstall cancelled.")
+
+            elif choice == 8:
                 os.system('cls')
                 continue
 
-            elif choice == 7:
+            elif choice == 9:
                 print("Exiting ...")
                 if ssh:
                     ssh.close_connection()
