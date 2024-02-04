@@ -191,7 +191,7 @@ if __name__ == "__main__":
                     continue
                 try:
                     # Move backup files to deployed location
-                    command = "mv ~/backup/* /var/www/bold-services/application/bi/dataservice/"
+                    command = f"mv ~/backup/* {deployed_location}"
                     ssh.execute_command(command)
                     print("[+] If backup found, Patch reverted successfully.")
                     
