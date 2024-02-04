@@ -24,4 +24,4 @@ py app.py
 
 
 ### Available Options
-![alt text](image.png)
+![alt text](https://github.com/yuvarajsf/deploy-bi-linux/blob/main/img/demo.png)
