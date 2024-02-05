@@ -28,9 +28,9 @@ def check_exisiting_session():
                 if username and password and server:
                     return [True,username, password, server]
         else:
-            return [False]
+            return [False, None, None, None]
     except Exception as e:
-        return [False]
+        return [False, None, None, None]
 
 
 
